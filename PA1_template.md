@@ -7,10 +7,13 @@ This assignment makes use of data from a personal activity monitoring device. Th
 
 
 ### Loading and preprocessing the data
-I have used the data provided in the forked GitHub repository. First, I loaded the data from the zipped file. The original file can be found [here](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip)
+First, I loaded necessary libraries and downloaded the data which is then loaded into **mydata**. (Note: this was done under Windows 8, so no good support of curl method in Knitr). The original file can be found [here](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip)
 
 ```r
-mydata<-read.csv(unz("activity.zip","activity.csv")) #read the csv directly from the zip file
+suppressMessages(library(plyr))
+suppressMessages(library(dplyr))
+download.file("http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip","repdata_data_activity.zip",mode="wb")
+mydata<-read.csv(unz("repdata_data_activity.zip","activity.csv"))
 nrow(mydata)
 ```
 
@@ -84,10 +87,11 @@ summary(mydata)
 Let's see a histogram of the total number of steps taken each day. In the next step I calculated the mean and meadian.
 
 ```r
-stepsByDay <- aggregate(steps~date,mydata[!is.na(mydata$steps),],sum) #calculte aggregation by date
-hist(stepsByDay$steps, col="blue", xlab="Number of steps taken", main="Total steps taken each day")
-stepsMean <- mean(stepsByDay$steps)
-stepsMedian <- median(stepsByDay$steps)
+stepsByDay <- mydata %>% group_by(date) %>% summarize(stepsByDay=sum(steps)) #calculte aggregation by date, I don't remove NA here because they would be replaced by 0. NAs will be replaces when calculating mean and median.
+hist(stepsByDay$stepsByDay, col="blue", xlab="Number of steps taken", main="Total steps taken each day")
+stepsMean <- mean(stepsByDay$steps,na.rm=TRUE)
+stepsMedian <- median(stepsByDay$steps,na.rm=TRUE)
+abline(v=stepsMean,lwd=2)
 legend("topright",legend=c(paste("mean = ",sprintf(fmt="%.2f",stepsMean)),paste("median = ",stepsMedian)))
 ```
 
@@ -101,22 +105,22 @@ Median total number of steps taken per day is **10765**
 Let's see a plot of average daily activity.
 
 ```r
-stepsByInterval <- aggregate(steps~interval,mydata[!is.na(mydata$steps),],mean) #calculate aggregation by interval
-plot(stepsByInterval$interval,stepsByInterval$steps,type="l",main="Average number of steps taken per interval",xlab="5-minute intervals",ylab="Average number of steps taken")
+stepsByInterval <- mydata %>% group_by(interval) %>% summarize(stepsMeanByInterval=mean(steps,na.rm=TRUE)) #calculate aggregation by interval
+plot(stepsByInterval$interval,stepsByInterval$stepsMeanByInterval,type="l",main="Average number of steps taken per interval",xlab="5-minute intervals",ylab="Average number of steps taken")
+intervalMax <- stepsByInterval[stepsByInterval$steps== max(stepsByInterval$stepsMeanByInterval),1]
+maxSteps <- max(stepsByInterval$stepsMeanByInterval)
+abline(v=intervalMax,col="red",lwd=2)
+legend("topright",legend=c(paste("interval with max = ",sprintf(fmt="%.0f",intervalMax)),paste("Max average steps = ",sprintf(fmt="%.2f",maxSteps))))
 ```
 
 ![](PA1_template_files/figure-html/activity-1.png) 
 
-```r
-intervalMax <- stepsByInterval[stepsByInterval$steps== max(stepsByInterval$steps),1]
-```
-
-Interval **835** contains the maximum number of steps.
+Interval **835** contains the maximum number of steps. Max average steps in that interval is **206.1698113**.
 
 
 ### Imputing missing values
 
-We can see that we have 2304 rows with missing values.
+We can see that we have **2304** rows with missing values.
 
 ```r
 numNA <-sum(is.na(mydata$steps),na.rm=TRUE)
@@ -134,25 +138,24 @@ pairs(mydata,pch=".")
 
 ![](PA1_template_files/figure-html/pairs-1.png) 
 
-I imputed missing values with median for a particular 5-minute interval. As we can see we now do not have missing values. I used median, because it is more immune to outliers than mean statistic.
+I imputed missing values with mean for a particular 5-minute interval. As we can see we now do not have missing values. I considered using median statistic, but it produced too many zeros, so eventually I opted for mean statistic and rounded the result.
 
 ```r
 mydataNAImputed <- mydata
-library(plyr)
-impute.median <- function(x) replace(x, is.na(x), median(x, na.rm = TRUE)) #define function for imputing data
+impute.median <- function(x) replace(x, is.na(x), round(mean(x, na.rm = TRUE))) #define function for imputing data
 #perform imputing grouped by interval
 mydataNAImputed <- ddply(mydataNAImputed, ~ interval, transform, steps = impute.median(steps)) 
 summary(mydataNAImputed)
 ```
 
 ```
-##      steps          date               interval     
-##  Min.   :  0   Min.   :2012-10-01   Min.   :   0.0  
-##  1st Qu.:  0   1st Qu.:2012-10-16   1st Qu.: 588.8  
-##  Median :  0   Median :2012-10-31   Median :1177.5  
-##  Mean   : 33   Mean   :2012-10-31   Mean   :1177.5  
-##  3rd Qu.:  8   3rd Qu.:2012-11-15   3rd Qu.:1766.2  
-##  Max.   :806   Max.   :2012-11-30   Max.   :2355.0
+##      steps             date               interval     
+##  Min.   :  0.00   Min.   :2012-10-01   Min.   :   0.0  
+##  1st Qu.:  0.00   1st Qu.:2012-10-16   1st Qu.: 588.8  
+##  Median :  0.00   Median :2012-10-31   Median :1177.5  
+##  Mean   : 37.38   Mean   :2012-10-31   Mean   :1177.5  
+##  3rd Qu.: 27.00   3rd Qu.:2012-11-15   3rd Qu.:1766.2  
+##  Max.   :806.00   Max.   :2012-11-30   Max.   :2355.0
 ```
 
 Let's see a histogram of the total number of steps taken each day using imputed data. 
@@ -162,41 +165,19 @@ stepsByDay <- aggregate(steps~date,mydataNAImputed,sum) #aggregate new data by d
 hist(stepsByDay$steps, col="blue", xlab="Number of steps taken", main="Total steps taken each day")
 stepsMean <- mean(stepsByDay$steps)
 stepsMedian <- median(stepsByDay$steps)
+abline(v=stepsMean,lwd=2)
 legend("topright",legend=c(paste("mean = ",sprintf(fmt="%.2f",stepsMean)),paste("median = ",stepsMedian)))
 ```
 
 ![](PA1_template_files/figure-html/histogramOnImputed-1.png) 
 
-Mean total number of steps taken per day is **9503.868852**  
-Median total number of steps taken per day is **10395**
+Mean total number of steps taken per day is **10765.639344**  
+Median total number of steps taken per day is **10762**
 
-We can clearly see a difference in results. Not so much in the Median, but a significant change in Mean.
+The results are pretty close to what we had previously.
 
 ### Are there differences in activity patterns between weekdays and weekends?
 First, I created a new factor variable with two levels "weekday" and "weekend".
-
-```r
-library(dplyr)
-```
-
-```
-## 
-## Attaching package: 'dplyr'
-## 
-## The following objects are masked from 'package:plyr':
-## 
-##     arrange, count, desc, failwith, id, mutate, rename, summarise,
-##     summarize
-## 
-## The following object is masked from 'package:stats':
-## 
-##     filter
-## 
-## The following objects are masked from 'package:base':
-## 
-##     intersect, setdiff, setequal, union
-```
-
 
 ```r
 # addWeekDay() - function that will choose between "weekday" and "weekend" based on date
@@ -211,7 +192,7 @@ str(mydataNAImputed) #check result
 
 ```
 ## 'data.frame':	17568 obs. of  4 variables:
-##  $ steps   : int  0 0 0 47 0 0 0 0 0 34 ...
+##  $ steps   : num  2 0 0 47 0 0 0 2 0 34 ...
 ##  $ date    : Date, format: "2012-10-01" "2012-10-02" ...
 ##  $ interval: int  0 0 0 0 0 0 0 0 0 0 ...
 ##  $ weekday : Factor w/ 2 levels "weekday","weekend": 1 1 1 1 1 2 2 1 1 1 ...
@@ -228,4 +209,4 @@ xyplot(steps~interval | weekday, data = stepsByInterval,type="l",main="Average n
 
 ![](PA1_template_files/figure-html/time_series_plot-1.png) 
 
-We can see a clear difference between weekends and weekdays.
+We can see a clear difference between weekends and weekdays. Weekdays data has a very distinct peek between 800 and 900 interval. Then there are less steps on average. In weekend data steps appear to be distributed more evenly.
