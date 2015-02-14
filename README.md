@@ -7,9 +7,7 @@ This assignment makes use of data from a personal activity monitoring device. Th
 To see the HTML with the rest of the analysis click this link:
 [http://htmlpreview.github.io/?https://github.com/marozet/RepData_PeerAssessment1/blob/master/PA1_template.html](http://htmlpreview.github.io/?https://github.com/marozet/RepData_PeerAssessment1/blob/master/PA1_template.html)
 
-Original README.md text below:
-
-## Introduction
+Original forked README.md text below:
 
 It is now possible to collect a large amount of data about personal
 movement using activity monitoring devices such as a
